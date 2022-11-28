@@ -1,0 +1,9 @@
+earthengine-api==0.1.330
+eemont==0.3.5
+geemap==0.17.2
+geopandas==0.12.1
+joblib==1.2.0
+scikit-learn==1.1.3
+streamlit==1.14.0
+streamlit-aggrid==0.3.3
+openpyxl==3.0.10
