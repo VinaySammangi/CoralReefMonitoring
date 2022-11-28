@@ -530,82 +530,66 @@ def _real_time_prediction():
             # landsat8_df.to_pickle("Output/landsat8_df_default.pkl")
         return landsat8_df,geometry
     
-    def run_cap(reef_region_df):
+    def run_cap():
         cap_button = st3_1_6.button("Predict") # Give button a variable name
         if cap_button: # Make button a condition.
-            with st.spinner('Wait for it...'):
-                landsat8_df,geometry = start_capture()
-                # print(landsat8_df.shape)
-                reef_region_df = reef_region_df.append([reef_region_df]*(landsat8_df.shape[0]-1),ignore_index=True)
-                # print(reef_region_df.shape)
-                landsat8_df = landsat8_df.reset_index(drop=True).join(reef_region_df.reset_index(drop=True))
-                final_gdf = data_file["presence_gdf"].copy()
-                st3_2_1, st3_2_2 = st.columns([5,2])
-    
-                fig = go.Figure(go.Scattermapbox(
-                    mode = "markers",
-                    lon = [], lat = [],
-                    marker = {'size': 0, 'color': ["cyan"]}))
-                temp = (geometry.getInfo()["coordinates"][0])
-                x,y = list(np.mean(np.array(temp[:-1]),axis=0))
-                fig.update_layout(
-                    title_text="Bounding Box",title_x=0.5,title_y=0.95,
-                    mapbox = {
-                        'style': "open-street-map",
-                        'center': { 'lon': x, 'lat':y},
-                        'zoom': 12, 'layers': [{
-                            'source': geometry.getInfo(),
-                            'type': "line", 'below': "traces", 'color': "#0042FF"},
-                {'source': json.loads(final_gdf.loc[final_gdf["Coral_Class"]=="Coral",].geometry.to_json()),
-                'type': "fill", 'below': "traces", 'color': "green"},
-                {'source': json.loads(final_gdf.loc[final_gdf["Coral_Class"]=="NonCoral",].geometry.to_json()),
-                'type': "fill", 'below': "traces", 'color': "red"}]},
-                        margin = {'l':0, 'r':0, 'b':0, 't':50},height=500
-                        )                
-                st3_2_2.plotly_chart(fig,use_container_width=True)
-                
-                presence_model = data_file["presence_model"]
-                x_vars  = list(presence_model.feature_names_in_)               
-                presence_predict_probs = presence_model.predict_proba(landsat8_df[x_vars])              
-                presence_predict_probs = (list(presence_predict_probs[:,0]))
-                presence_predictions = list(presence_model.predict(landsat8_df[x_vars]))
-                # print(presence_predictions)
-                presence_predictions_text = presence_predictions.copy()#["NonCoral" if i==0 else "Coral" for i in predictions]
-                dates = list(landsat8_df["date"])
-                color_map = {"NonCoral": "red","Coral": "green"}
-                fig = go.Figure(data=go.Scatter(x=dates,
-                                y=presence_predict_probs,    
-                                mode='markers',                                
-                                marker = {'color': pd.Series(presence_predictions).apply(lambda x: color_map[x]),
-                                  'size': 7
-                                  },
-                                hovertemplate =
-                    'Date: <b>%{x}</b>'+
-                    '<br>Probability: <b>%{y}</b>'+
-                    # '<br>Class: <b>%{marker.color}</b><br>'
-                    '<br>Class: <b>%{text}</b><br>'+                                
-                    '<b>%{customdata}</b>',text = presence_predictions_text,customdata = dates))
-                fig.update_layout(margin=dict(l=0,r=0,b=0,t=50))
-                fig.update_layout(xaxis_title="Date",yaxis_title="Coral Probability",title_text="Coral Presence Over Time",title_x=0.5,title_y=0.95,
-                                 width=1200,height=500,template="plotly_white",font=dict(size=16))
-                st3_2_1.plotly_chart(fig,use_container_width=True)
 
-                landsat8_df["Coral Presence"] = presence_predictions
-                if landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",].shape[0]>0:
-                    bleaching_model = data_file["bleaching_model"]
-                    x_vars  = list(bleaching_model.feature_names_in_)               
-                    predict_probs = bleaching_model.predict_proba(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",x_vars])              
-                    predict_probs = (list(predict_probs[:,0]))
-                    predictions = list(bleaching_model.predict(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",x_vars]))
-                    # print(predict_probs)
-                    # print(predictions)
-                    predictions_text = predictions.copy()#["NonCoral" if i==0 else "Coral" for i in predictions]
-                    dates = list(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral","date"])
-                    color_map = {"High Bleaching": "red","Low Bleaching": "green"}
+            boundaries_regions = data_file["boundaries_regions"]
+            reef_region, reef_region_dict = "",{}
+            for ind, row in boundaries_regions.iterrows():
+                reef_region_dict[row["name"]] = [0]
+                if shape(row["geometry"]).contains(Point(long_,lat_)):
+                    reef_region = row["name"]
+                    reef_region_dict[row["name"]] = [1]
+                    
+            if reef_region=="":
+                st.error('Provided Lat Long is outside the bounding boxes of 9 regions', icon="🚨")
+            else:
+                with st.spinner('Wait for it...'):
+                    landsat8_df,geometry = start_capture()
+                    reef_region_df = pd.DataFrame(reef_region_dict)
+                    # print(landsat8_df.shape)
+                    reef_region_df = reef_region_df.append([reef_region_df]*(landsat8_df.shape[0]-1),ignore_index=True)
+                    # print(reef_region_df.shape)
+                    landsat8_df = landsat8_df.reset_index(drop=True).join(reef_region_df.reset_index(drop=True))
+                    final_gdf = data_file["presence_gdf"].copy()
+                    st3_2_1, st3_2_2 = st.columns([5,2])
+        
+                    fig = go.Figure(go.Scattermapbox(
+                        mode = "markers",
+                        lon = [], lat = [],
+                        marker = {'size': 0, 'color': ["cyan"]}))
+                    temp = (geometry.getInfo()["coordinates"][0])
+                    x,y = list(np.mean(np.array(temp[:-1]),axis=0))
+                    fig.update_layout(
+                        title_text="Bounding Box",title_x=0.5,title_y=0.95,
+                        mapbox = {
+                            'style': "open-street-map",
+                            'center': { 'lon': x, 'lat':y},
+                            'zoom': 12, 'layers': [{
+                                'source': geometry.getInfo(),
+                                'type': "line", 'below': "traces", 'color': "#0042FF"},
+                    {'source': json.loads(final_gdf.loc[final_gdf["Coral_Class"]=="Coral",].geometry.to_json()),
+                    'type': "fill", 'below': "traces", 'color': "green"},
+                    {'source': json.loads(final_gdf.loc[final_gdf["Coral_Class"]=="NonCoral",].geometry.to_json()),
+                    'type': "fill", 'below': "traces", 'color': "red"}]},
+                            margin = {'l':0, 'r':0, 'b':0, 't':50},height=500
+                            )                
+                    st3_2_2.plotly_chart(fig,use_container_width=True)
+                    
+                    presence_model = data_file["presence_model"]
+                    x_vars  = list(presence_model.feature_names_in_)               
+                    presence_predict_probs = presence_model.predict_proba(landsat8_df[x_vars])              
+                    presence_predict_probs = (list(presence_predict_probs[:,0]))
+                    presence_predictions = list(presence_model.predict(landsat8_df[x_vars]))
+                    # print(presence_predictions)
+                    presence_predictions_text = presence_predictions.copy()#["NonCoral" if i==0 else "Coral" for i in predictions]
+                    dates = list(landsat8_df["date"])
+                    color_map = {"NonCoral": "red","Coral": "green"}
                     fig = go.Figure(data=go.Scatter(x=dates,
-                                    y=predict_probs,    
+                                    y=presence_predict_probs,    
                                     mode='markers',                                
-                                    marker = {'color': pd.Series(predictions).apply(lambda x: color_map[x]),
+                                    marker = {'color': pd.Series(presence_predictions).apply(lambda x: color_map[x]),
                                       'size': 7
                                       },
                                     hovertemplate =
@@ -613,26 +597,55 @@ def _real_time_prediction():
                         '<br>Probability: <b>%{y}</b>'+
                         # '<br>Class: <b>%{marker.color}</b><br>'
                         '<br>Class: <b>%{text}</b><br>'+                                
-                        '<b>%{customdata}</b>',text = predictions_text,customdata = dates))
+                        '<b>%{customdata}</b>',text = presence_predictions_text,customdata = dates))
                     fig.update_layout(margin=dict(l=0,r=0,b=0,t=50))
-                    fig.update_layout(xaxis_title="Date",yaxis_title="High Bleaching Probability",title_text="Bleaching (Low: < 25% vs High: >= 25%) Over Time",title_x=0.5,title_y=0.95,
+                    fig.update_layout(xaxis_title="Date",yaxis_title="Coral Probability",title_text="Coral Presence Over Time",title_x=0.5,title_y=0.95,
                                      width=1200,height=500,template="plotly_white",font=dict(size=16))
                     st3_2_1.plotly_chart(fig,use_container_width=True)
     
-            st3_1_6.success('', icon="✅")
+                    landsat8_df["Coral Presence"] = presence_predictions
+                    if landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",].shape[0]>0:
+                        bleaching_model = data_file["bleaching_model"]
+                        x_vars  = list(bleaching_model.feature_names_in_)               
+                        predict_probs = bleaching_model.predict_proba(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",x_vars])              
+                        predict_probs = (list(predict_probs[:,0]))
+                        predictions = list(bleaching_model.predict(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral",x_vars]))
+                        # print(predict_probs)
+                        # print(predictions)
+                        predictions_text = predictions.copy()#["NonCoral" if i==0 else "Coral" for i in predictions]
+                        dates = list(landsat8_df.loc[landsat8_df["Coral Presence"]=="Coral","date"])
+                        color_map = {"High Bleaching": "red","Low Bleaching": "green"}
+                        fig = go.Figure(data=go.Scatter(x=dates,
+                                        y=predict_probs,    
+                                        mode='markers',                                
+                                        marker = {'color': pd.Series(predictions).apply(lambda x: color_map[x]),
+                                          'size': 7
+                                          },
+                                        hovertemplate =
+                            'Date: <b>%{x}</b>'+
+                            '<br>Probability: <b>%{y}</b>'+
+                            # '<br>Class: <b>%{marker.color}</b><br>'
+                            '<br>Class: <b>%{text}</b><br>'+                                
+                            '<b>%{customdata}</b>',text = predictions_text,customdata = dates))
+                        fig.update_layout(margin=dict(l=0,r=0,b=0,t=50))
+                        fig.update_layout(xaxis_title="Date",yaxis_title="High Bleaching Probability",title_text="Bleaching (Low: < 25% vs High: >= 25%) Over Time",title_x=0.5,title_y=0.95,
+                                         width=1200,height=500,template="plotly_white",font=dict(size=16))
+                        st3_2_1.plotly_chart(fig,use_container_width=True)
+        
+                st3_1_6.success('', icon="✅")
+    run_cap()      
+    # boundaries_regions = data_file["boundaries_regions"]
+    # reef_region, reef_region_dict = "",{}
+    # for ind, row in boundaries_regions.iterrows():
+    #     reef_region_dict[row["name"]] = [0]
+    #     if shape(row["geometry"]).contains(Point(long_,lat_)):
+    #         reef_region = row["name"]
+    #         reef_region_dict[row["name"]] = [1]
             
-    boundaries_regions = data_file["boundaries_regions"]
-    reef_region, reef_region_dict = "",{}
-    for ind, row in boundaries_regions.iterrows():
-        reef_region_dict[row["name"]] = [0]
-        if shape(row["geometry"]).contains(Point(long_,lat_)):
-            reef_region = row["name"]
-            reef_region_dict[row["name"]] = [1]
-            
-    if reef_region=="":
-        st.error('Provided Lat Long is outside the bounding boxes of 9 regions', icon="🚨")
-    else:
-        run_cap(pd.DataFrame(reef_region_dict))
+    # if reef_region=="":
+    #     st.error('Provided Lat Long is outside the bounding boxes of 9 regions', icon="🚨")
+    # else:
+    #     run_cap(pd.DataFrame(reef_region_dict))
 
 from shapely.geometry import shape, GeometryCollection, Point
 
@@ -660,6 +673,22 @@ def download_landsat8(fc_,start_date,end_date,bands_):
     time_df_filtered = time_df.loc[time_df["QA_PIXEL"]!=-9999,]
     return time_df_filtered
     
+def _future_work():
+    st.markdown("<h4>Assumptions</h4>",unsafe_allow_html=True)                
+    st.markdown("- Coral exists within 100 meters around a Latitude-Longitude point where coral was found.")
+    st.markdown("- Coral levels are relatively unchanged within 1 month around the date of data collection.")
+    st.markdown("- There are certain regions which are studied more frequently and this results in more accurate data collections.")
+    st.markdown("- If Landsat 8 is ever discontinued, the same methods outlined here can be used with data collected from Landsat 9.")
+
+    st.markdown("<h4>Future Work</h4>",unsafe_allow_html=True)                
+    st.markdown("- Identify the right thresholds for the bleaching model.")
+    st.markdown("- Further improve the models through stacking, ensemble methods, and further hyperparameter tuning")
+    st.markdown("- Utilize more coral datasets.")
+    st.markdown("- Incorporate region specific factors.")
+    st.markdown("- Replicate the results with USGS API instead of EarthEngine.")
+    st.markdown("- Explore other satellites like Sentinel.")    
+    st.markdown("- Perform feature engineering on spectral bands.")        
+    pass
     
 tab1, tab2, tab3, tab4 = st.tabs(["1. Datasets","2. Model Results","3. Real-time Prediction","4. Future Work"])
 
@@ -676,5 +705,5 @@ with tab3:
     pass
 
 with tab4:
-    # _real_time_prediction()
+    _future_work()
     pass
